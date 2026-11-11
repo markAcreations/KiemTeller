@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Tel kiemplantjes automatisch op foto's van zaaibakken.">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Kiemteller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: werkbank — foto groot links, telpaneel rechts; op telefoon onder elkaar */
+:root{
+  --bg:#f2f3ee; --surface:#ffffff; --ink:#1c2318; --muted:#5d6656; --line:#d8dcd0;
+  --accent:#4a7718; --accent-ink:#ffffff; --soft:#e6ecd9;
+  --mk-top:#2fd0ff; --mk-bot:#ff5ca8;
+  --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141712; --surface:#1d2119; --ink:#e6e9de; --muted:#9aa390; --line:#343a2e;
+  --accent:#a3d158; --accent-ink:#152008; --soft:#263019; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141712; --surface:#1d2119; --ink:#e6e9de; --muted:#9aa390; --line:#343a2e;
+  --accent:#a3d158; --accent-ink:#152008; --soft:#263019; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-size:28px;line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:60ch}
+.btn{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+@media (max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.stagebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.photoname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.canvaswrap{position:relative;border-radius:8px;overflow:hidden;background:#0d0d0d;touch-action:manipulation}
+canvas#view{display:block;width:100%;height:auto;cursor:crosshair}
+.drop{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(74,119,24,.75);color:#fff;font-weight:700;font-size:18px}
+.canvaswrap.dragover .drop{display:flex}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.panel{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.counts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.half{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.half .head{display:flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.half input.nm{font:inherit;font-weight:600;border:none;background:transparent;color:var(--ink);width:100%;padding:0;min-width:0}
+.num{font-family:var(--mono);font-size:34px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.sown{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.sown input{font-family:var(--mono);width:64px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.pct{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:600;min-height:1.2em}
+.total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:10px}
+.total .num{font-size:26px}
+.row{display:flex;flex-direction:column;gap:4px}
+.row .top{display:flex;justify-content:space-between;font-size:14px}
+.row .top span:last-child{font-family:var(--mono);color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.check{display:flex;gap:8px;align-items:center;font-size:14px}
+.check input{accent-color:var(--accent);width:16px;height:16px}
+.thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.thumb{flex:none;width:72px;border:2px solid transparent;border-radius:8px;padding:0;background:none;cursor:pointer;position:relative;overflow:hidden}
+.thumb img{display:block;width:100%;height:90px;object-fit:cover}
+.thumb.on{border-color:var(--accent)}
+.thumb span{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);color:#fff;font-family:var(--mono);font-size:11px;text-align:center}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td:first-child,th:first-child{text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+td{font-family:var(--mono)}td:first-child{font-family:var(--sans)}
+tr.on td{background:var(--soft)}
+.toast{font-size:13px;color:var(--accent);min-height:1.2em;margin:0}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--accent)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Kiemteller</h1>
+      <p>Upload foto's van je zaaibakken. De lichtgroene kiemplantjes worden automatisch geteld, per helft van de bak. Tik op de foto om een gemiste kieming toe te voegen of een foute te verwijderen.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label class="btn primary" for="file">Foto's kiezen</label>
+      <input id="file" type="file" accept="image/*" multiple hidden>
+    </div>
+  </header>
+
+  <div class="main">
+    <section class="stage">
+      <div class="stagebar">
+        <span class="photoname" id="pname">–</span>
+        <span id="sample" class="badge" hidden>Voorbeeld</span>
+        <button class="btn" id="undo" disabled>Ongedaan maken</button>
+        <button class="btn" id="del">Foto verwijderen</button>
+      </div>
+      <div class="canvaswrap" id="cw">
+        <canvas id="view" width="900" height="1200"></canvas>
+        <div class="drop">Laat los om te tellen</div>
+      </div>
+      <p class="hint">Tik op lege grond om een kieming toe te voegen, tik op een markering om die te verwijderen (bij een groepje gaat er één af). Sleep de witte stippellijn naar de scheiding tussen de twee helften.</p>
+      <div class="thumbs" id="thumbs"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="card">
+        <p class="label">Telling deze foto</p>
+        <div class="counts">
+          <div class="half">
+            <div class="head"><span class="dot" style="background:var(--mk-top)"></span><input class="nm" id="nmTop" aria-label="Naam bovenste helft"></div>
+            <span class="num" id="cTop">0</span>
+            <label class="sown">gezaaid <input id="sTop" type="number" min="0" inputmode="numeric"></label>
+            <span class="pct" id="pTop"></span>
+          </div>
+          <div class="half" id="botBox">
+            <div class="head"><span class="dot" style="background:var(--mk-bot)"></span><input class="nm" id="nmBot" aria-label="Naam onderste helft"></div>
+            <span class="num" id="cBot">0</span>
+            <label class="sown">gezaaid <input id="sBot" type="number" min="0" inputmode="numeric"></label>
+            <span class="pct" id="pBot"></span>
+          </div>
+        </div>
+        <div class="total"><span>Totaal gekiemd</span><span class="num" id="cAll">0</span></div>
+      </div>
+
+      <div class="card">
+        <p class="label">Detectie</p>
+        <label class="check"><input type="checkbox" id="split" checked> Bak is in twee helften verdeeld</label>
+        <div class="row">
+          <div class="top"><label for="sens">Gevoeligheid kleur</label><span id="vSens"></span></div>
+          <input type="range" id="sens" min="1" max="10" step="1" value="5">
+        </div>
+        <div class="row">
+          <div class="top"><label for="size">Minimale grootte</label><span id="vSize"></span></div>
+          <input type="range" id="size" min="5" max="80" step="5" value="30">
+        </div>
+        <div class="row">
+          <div class="top"><label for="clus">Groepjes splitsen vanaf</label><span id="vClus"></span></div>
+          <input type="range" id="clus" min="130" max="300" step="10" value="165">
+        </div>
+        <p class="hint">Gemist? Gevoeligheid omhoog. Zaadjes of korrels meegeteld? Minimale grootte omhoog. Een nieuwe instelling telt opnieuw; zelf toegevoegde markeringen blijven staan.</p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <p class="label">Alle foto's</p>
+          <button class="btn" id="copy">Kopieer tabel</button>
+        </div>
+        <div class="tablewrap"><table id="tbl"></table></div>
+        <p class="toast" id="toast"></p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+const MAXSIDE = 1400;
+const S = { photos: [], cur: -1 };
+const $ = id => document.getElementById(id);
+const view = $('view'), vctx = view.getContext('2d');
+const set = () => ({ sens: +$('sens').value, size: +$('size').value / 100, clus: +$('clus').value / 100, split: $('split').checked });
+
+/* ---------- beeldanalyse ---------- */
+function toCanvas(src, w0, h0){
+  const k = Math.min(1, MAXSIDE / Math.max(w0, h0));
+  const w = Math.round(w0 * k), h = Math.round(h0 * k);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(src, 0, 0, w, h);
+  return c;
+}
+
+function maskOf(p, sens){
+  const { width:w, height:h } = p.cv;
+  const d = p.cv.getContext('2d').getImageData(0, 0, w, h).data;
+  const sMin = 0.56 - sens * 0.042, vMin = 0.62 - sens * 0.034;
+  const m = new Uint8Array(w * h);
+  for (let i = 0, j = 0; j < m.length; i += 4, j++){
+    const r = d[i], g = d[i+1], b = d[i+2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (mx !== g && !(mx === r && g > r * 0.93)) continue;
+    const v = mx / 255; if (v < vMin) continue;
+    const s = mx ? (mx - mn) / mx : 0; if (s < sMin) continue;
+    let hue;
+    if (mx === r) hue = 60 * (((g - b) / (mx - mn)) % 6);
+    else hue = 60 * ((b - r) / (mx - mn) + 2);
+    if (hue < 0) hue += 360;
+    if (hue >= 46 && hue <= 125) m[j] = 1;
+  }
+  return { m, w, h };
+}
+
+function blobs({ m, w, h }){
+  const lab = new Int32Array(w * h), out = [], st = [];
+  let id = 0;
+  for (let i = 0; i < m.length; i++){
+    if (!m[i] || lab[i]) continue;
+    id++; let a = 0, sx = 0, sy = 0; st.push(i); lab[i] = id;
+    while (st.length){
+      const q = st.pop(), x = q % w, y = (q / w) | 0;
+      a++; sx += x; sy += y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const n = ny * w + nx;
+        if (m[n] && !lab[n]){ lab[n] = id; st.push(n); }
+      }
+    }
+    out.push({ a, x: sx / a, y: sy / a });
+  }
+  return out;
+}
+
+function detect(p){
+  const st = set();
+  const mk = maskOf(p, st.sens);
+  const all = blobs(mk);
+  const floor = Math.max(6, mk.w * mk.h * 0.000004);
+  const cand = all.filter(b => b.a >= floor).map(b => b.a).sort((a, b) => a - b);
+  // typische kiemgrootte = mediaan van de bovenste helft (zaadjes/ruis drukken anders de mediaan)
+  const upper = cand.slice(Math.floor(cand.length * 0.4));
+  const med = upper.length ? upper[Math.floor(upper.length / 2)] : 100;
+  const minA = Math.max(floor, med * st.size);
+  p.med = med;
+  p.r = Math.max(6, Math.sqrt(med / Math.PI) * 1.45);
+  const auto = [];
+  for (const b of all){
+    if (b.a < minA) continue;
+    const n = b.a > med * st.clus ? Math.max(2, Math.round(b.a / med)) : 1;
+    auto.push({ x: b.x, y: b.y, n, manual: false });
+  }
+  const manual = (p.points || []).filter(q => q.manual);
+  p.points = auto.concat(manual);
+  p.hist = [];
+}
+
+function findDivider(p){
+  const { width:w, height:h } = p.cv;
+  const d = p.cv.getContext('2d').getImageData(0, 0, w, h).data;
+  let best = -1, bestY = h / 2;
+  const rows = new Float32Array(h);
+  for (let y = Math.floor(h * 0.25); y < h * 0.75; y++){
+    let c = 0;
+    for (let x = 0; x < w; x += 2){
+      const i = (y * w + x) * 4, r = d[i], g = d[i+1], b = d[i+2];
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (mx > 175 && (mx - mn) < 45) c++;
+    }
+    rows[y] = c / (w / 2);
+  }
+  for (let y = Math.floor(h * 0.25) + 3; y < h * 0.75 - 3; y++){
+    let s = 0; for (let k = -3; k <= 3; k++) s += rows[y + k];
+    if (s > best){ best = s; bestY = y; }
+  }
+  return best / 7 > 0.25 ? bestY : h / 2;
+}
+
+/* ---------- foto's toevoegen ---------- */
+function addPhoto(name, src, w, h, sample){
+  const cv = toCanvas(src, w, h);
+  const p = { name, cv, thumb: cv.toDataURL('image/jpeg', 0.5), points: [], hist: [], sample: !!sample,
+              nmTop: 'Boven', nmBot: 'Onder', sTop: '', sBot: '' };
+  p.divY = findDivider(p);
+  detect(p);
+  if (S.photos.length === 1 && S.photos[0].sample) S.photos = [];
+  S.photos.push(p);
+  S.cur = S.photos.length - 1;
+  renderAll();
+}
+
+function loadFiles(files){
+  [...files].filter(f => f.type.startsWith('image/') || /\.(heic|jpe?g|png|webp)$/i.test(f.name)).forEach(f => {
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => { addPhoto(f.name, img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(url); };
+    img.onerror = () => flash(`“${f.name}” kon niet worden geopend. HEIC-foto's werken alleen in Safari; stel je iPhone in op ‘Meest compatibel’ of stuur als JPG.`);
+    img.src = url;
+  });
+}
+$('file').addEventListener('change', e => { loadFiles(e.target.files); e.target.value = ''; });
+const cw = $('cw');
+['dragenter','dragover'].forEach(t => cw.addEventListener(t, e => { e.preventDefault(); cw.classList.add('dragover'); }));
+['dragleave','drop'].forEach(t => cw.addEventListener(t, e => { e.preventDefault(); cw.classList.remove('dragover'); }));
+cw.addEventListener('drop', e => loadFiles(e.dataTransfer.files));
+document.addEventListener('paste', e => { const f = [...(e.clipboardData?.files || [])]; if (f.length) loadFiles(f); });
+
+/* ---------- voorbeeldbak (gegenereerd) ---------- */
+function makeSample(){
+  const W = 900, H = 1200, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  x.fillStyle = '#121212'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#3b2519'; x.fillRect(55, 55, W - 110, H - 110);
+  const browns = ['#2a1910','#4a2e1e','#5b3a26','#33201a','#6b4630','#1f140e'];
+  for (let i = 0; i < 26000; i++){ x.fillStyle = browns[(rnd() * browns.length) | 0]; const s = 1 + rnd() * 5; x.fillRect(55 + rnd() * (W - 115), 55 + rnd() * (H - 115), s, s); }
+  x.lineWidth = 1;
+  for (let i = 0; i < 260; i++){ x.strokeStyle = rnd() > .5 ? '#8a5a35' : '#a06a3f'; x.beginPath(); let px = 60 + rnd() * (W - 120), py = 60 + rnd() * (H - 120); x.moveTo(px, py);
+    for (let k = 0; k < 4; k++){ px += (rnd() - .5) * 60; py += (rnd() - .5) * 60; x.lineTo(px, py); } x.stroke(); }
+  for (let i = 0; i < 40; i++){ x.fillStyle = '#c27a3a'; x.beginPath(); x.arc(70 + rnd() * (W - 140), 70 + rnd() * (H - 140), 2.5, 0, 7); x.fill(); }
+  x.fillStyle = '#ecebe6'; x.beginPath(); x.moveTo(150, 585); x.lineTo(820, 580); x.lineTo(840, 592); x.lineTo(820, 602); x.lineTo(150, 604); x.fill();
+  const seedling = (cx, cy, r) => { const g = x.createRadialGradient(cx - r * .3, cy - r * .3, 1, cx, cy, r);
+    g.addColorStop(0, '#e6f59a'); g.addColorStop(.6, '#bfe05a'); g.addColorStop(1, '#94bd3c'); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); };
+  for (let i = 0; i < 74; i++){
+    let cx = 90 + rnd() * (W - 180), cy = 90 + rnd() * (H - 180);
+    if (Math.abs(cy - 593) < 30) cy += 60;
+    const r = 8 + rnd() * 4; seedling(cx, cy, r);
+    if (rnd() < .1) seedling(cx + r * 1.6, cy + 2, r * .95);
+  }
+  return c;
+}
+
+/* ---------- tekenen ---------- */
+function draw(){
+  const p = S.photos[S.cur]; if (!p) return;
+  const st = set();
+  if (view.width !== p.cv.width || view.height !== p.cv.height){ view.width = p.cv.width; view.height = p.cv.height; }
+  vctx.drawImage(p.cv, 0, 0);
+  const css = getComputedStyle(document.documentElement);
+  const cT = css.getPropertyValue('--mk-top').trim(), cB = css.getPropertyValue('--mk-bot').trim();
+  const lw = Math.max(2, view.width / 450);
+  if (st.split){
+    vctx.save(); vctx.strokeStyle = '#ffffff'; vctx.lineWidth = lw; vctx.setLineDash([lw * 5, lw * 4]);
+    vctx.shadowColor = 'rgba(0,0,0,.8)'; vctx.shadowBlur = 4;
+    vctx.beginPath(); vctx.moveTo(0, p.divY); vctx.lineTo(view.width, p.divY); vctx.stroke();
+    vctx.setLineDash([]); vctx.fillStyle = '#fff';
+    const hx = view.width - lw * 14; vctx.beginPath(); vctx.arc(hx, p.divY, lw * 6, 0, 7); vctx.fill();
+    vctx.restore();
+  }
+  for (const q of p.points){
+    const col = !st.split || q.y < p.divY ? cT : cB;
+    vctx.strokeStyle = col; vctx.lineWidth = lw;
+    vctx.setLineDash(q.manual ? [lw * 2, lw * 1.5] : []);
+    const r = p.r * (q.n > 1 ? 1.35 : 1);
+    vctx.beginPath(); vctx.arc(q.x, q.y, r, 0, 7); vctx.stroke();
+    if (q.n > 1){
+      vctx.setLineDash([]);
+      const fs = Math.max(12, p.r * 1.1);
+      vctx.font = `700 ${fs}px ${css.getPropertyValue('--mono')}`;
+      const tx = q.x + r * .75, ty = q.y - r * .75;
+      vctx.fillStyle = col; vctx.beginPath(); vctx.arc(tx, ty, fs * .7, 0, 7); vctx.fill();
+      vctx.fillStyle = '#111'; vctx.textAlign = 'center'; vctx.textBaseline = 'middle'; vctx.fillText(q.n, tx, ty + 1);
+    }
+  }
+  vctx.setLineDash([]);
+}
+
+function countsOf(p){
+  const st = set(); let t = 0, b = 0;
+  for (const q of p.points){ if (!st.split || q.y < p.divY) t += q.n; else b += q.n; }
+  return { t, b, all: t + b };
+}
+const pct = (n, s) => s > 0 ? (100 * n / s).toFixed(1).replace('.', ',') + '% gekiemd' : '';
+
+function renderPanel(){
+  const p = S.photos[S.cur]; const st = set();
+  $('pname').textContent = p ? p.name : 'Geen foto';
+  $('sample').hidden = !(p && p.sample);
+  $('undo').disabled = !(p && p.hist.length);
+  $('del').disabled = !p;
+  $('botBox').style.opacity = st.split ? 1 : .4;
+  if (!p) return;
+  const c = countsOf(p);
+  $('cTop').textContent = c.t; $('cBot').textContent = st.split ? c.b : '–'; $('cAll').textContent = c.all;
+  $('nmTop').value = st.split ? p.nmTop : 'Hele bak'; $('nmTop').disabled = !st.split;
+  $('nmBot').value = p.nmBot;
+  $('sTop').value = p.sTop; $('sBot').value = p.sBot;
+  $('pTop').textContent = pct(c.t, +p.sTop); $('pBot').textContent = st.split ? pct(c.b, +p.sBot) : '';
+}
+
+function renderTable(){
+  const st = set();
+  let h = '<tr><th>Foto</th>' + (st.split ? '<th>Boven</th><th>Onder</th>' : '') + '<th>Totaal</th>' + (st.split ? '<th>% boven</th><th>% onder</th>' : '<th>%</th>') + '</tr>';
+  S.photos.forEach((p, i) => {
+    const c = countsOf(p);
+    const pt = +p.sTop > 0 ? (100 * c.t / p.sTop).toFixed(1).replace('.', ',') : '–';
+    const pb = +p.sBot > 0 ? (100 * c.b / p.sBot).toFixed(1).replace('.', ',') : '–';
+    const esc = s => s.replace(/[&<>"]/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
+    h += `<tr class="${i === S.cur ? 'on' : ''}" data-i="${i}" style="cursor:pointer"><td title="${esc(p.name)}">${esc(p.name)}</td>` +
+      (st.split ? `<td>${c.t}</td><td>${c.b}</td>` : '') + `<td>${c.all}</td>` + (st.split ? `<td>${pt}</td><td>${pb}</td>` : `<td>${pt}</td>`) + '</tr>';
+  });
+  $('tbl').innerHTML = h;
+}
+$('tbl').addEventListener('click', e => { const tr = e.target.closest('tr[data-i]'); if (tr){ S.cur = +tr.dataset.i; renderAll(); } });
+
+function renderThumbs(){
+  $('thumbs').innerHTML = S.photos.map((p, i) => `<button class="thumb ${i === S.cur ? 'on' : ''}" data-i="${i}" aria-label="Foto ${i + 1}"><img src="${p.thumb}" alt=""><span>${countsOf(p).all}</span></button>`).join('');
+}
+$('thumbs').addEventListener('click', e => { const b = e.target.closest('.thumb'); if (b){ S.cur = +b.dataset.i; renderAll(); } });
+
+function renderAll(){ draw(); renderPanel(); renderTable(); renderThumbs();
+  $('vSens').textContent = $('sens').value; $('vSize').textContent = $('size').value + '%'; $('vClus').textContent = '× ' + (+$('clus').value / 100).toFixed(2).replace('.', ',');
+}
+function light(){ draw(); renderPanel(); renderTable(); renderThumbs(); }
+
+/* ---------- interactie op de foto ---------- */
+let drag = null;
+function pos(e){ const r = view.getBoundingClientRect(); const k = view.width / r.width; return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k, k }; }
+view.addEventListener('pointerdown', e => {
+  const p = S.photos[S.cur]; if (!p) return;
+  const q = pos(e);
+  drag = { start: q, moved: false, div: set().split && Math.abs(q.y - p.divY) < 16 * q.k };
+  if (drag.div) view.setPointerCapture(e.pointerId);
+});
+view.addEventListener('pointermove', e => {
+  const p = S.photos[S.cur]; if (!p) return;
+  const q = pos(e);
+  if (!drag){ view.style.cursor = set().split && Math.abs(q.y - p.divY) < 16 * q.k ? 'ns-resize' : 'crosshair'; return; }
+  if (Math.hypot(q.x - drag.start.x, q.y - drag.start.y) > 6 * q.k) drag.moved = true;
+  if (drag.div && drag.moved){ p.divY = Math.max(0, Math.min(view.height, q.y)); light(); }
+});
+view.addEventListener('pointerup', e => {
+  const p = S.photos[S.cur]; const d = drag; drag = null;
+  if (!p || !d || d.moved) return;
+  if (d.div){ return; }
+  const q = pos(e);
+  p.hist.push(JSON.stringify(p.points)); if (p.hist.length > 60) p.hist.shift();
+  let bi = -1, bd = Infinity;
+  p.points.forEach((pt, i) => { const dd = Math.hypot(pt.x - q.x, pt.y - q.y); if (dd < bd){ bd = dd; bi = i; } });
+  const hitR = Math.max(p.r * 1.5, 14 * q.k);
+  if (bi >= 0 && bd < hitR){ const pt = p.points[bi]; if (pt.n > 1) pt.n--; else p.points.splice(bi, 1); }
+  else p.points.push({ x: q.x, y: q.y, n: 1, manual: true });
+  light();
+});
+view.addEventListener('pointercancel', () => drag = null);
+
+$('undo').addEventListener('click', () => { const p = S.photos[S.cur]; if (p && p.hist.length){ p.points = JSON.parse(p.hist.pop()); light(); } });
+$('del').addEventListener('click', () => {
+  if (S.cur < 0) return; S.photos.splice(S.cur, 1); S.cur = Math.min(S.cur, S.photos.length - 1);
+  if (!S.photos.length){ vctx.fillStyle = '#0d0d0d'; vctx.fillRect(0, 0, view.width, view.height); }
+  renderAll();
+});
+
+['sens','size','clus'].forEach(id => $(id).addEventListener('change', () => { S.photos.forEach(detect); renderAll(); }));
+['sens','size','clus'].forEach(id => $(id).addEventListener('input', () => renderAll.call()));
+$('split').addEventListener('change', renderAll);
+$('nmTop').addEventListener('input', e => { const p = S.photos[S.cur]; if (p) p.nmTop = e.target.value; });
+$('nmBot').addEventListener('input', e => { const p = S.photos[S.cur]; if (p) p.nmBot = e.target.value; });
+$('sTop').addEventListener('input', e => { const p = S.photos[S.cur]; if (p){ p.sTop = e.target.value; renderPanel(); renderTable(); } });
+$('sBot').addEventListener('input', e => { const p = S.photos[S.cur]; if (p){ p.sBot = e.target.value; renderPanel(); renderTable(); } });
+
+function flash(t){ $('toast').textContent = t; clearTimeout(flash.t); flash.t = setTimeout(() => $('toast').textContent = '', 6000); }
+$('copy').addEventListener('click', () => {
+  const st = set();
+  const rows = [['Foto', ...(st.split ? ['Naam boven','Gekiemd boven','Gezaaid boven','Naam onder','Gekiemd onder','Gezaaid onder'] : ['Gekiemd','Gezaaid']), 'Totaal']];
+  S.photos.forEach(p => { const c = countsOf(p);
+    rows.push([p.name, ...(st.split ? [p.nmTop, c.t, p.sTop, p.nmBot, c.b, p.sBot] : [c.all, p.sTop]), c.all]); });
+  const txt = rows.map(r => r.join('\t')).join('\n');
+  const ok = () => flash('Tabel gekopieerd. Plak hem in Excel of Google Sheets.');
+  try { navigator.clipboard.writeText(txt).then(ok, () => fallbackCopy(txt)); } catch(_) { fallbackCopy(txt); }
+});
+function fallbackCopy(txt){
+  const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch(_) {}
+  ta.remove(); flash(ok ? 'Tabel gekopieerd.' : 'Kopiëren lukte niet in deze weergave. Open de pagina in een browser en probeer opnieuw.');
+}
+window.addEventListener('resize', draw);
+
+const sc = makeSample();
+addPhoto('Voorbeeldbak (gegenereerd)', sc, sc.width, sc.height, true);
+})();
+</script>
+
+</body>
+</html>
