@@ -12,17 +12,17 @@
 /* Layout: werkbank — foto groot links, telpaneel rechts; op telefoon onder elkaar */
 :root{
   --bg:#f2f3ee; --surface:#ffffff; --ink:#1c2318; --muted:#5d6656; --line:#d8dcd0;
-  --accent:#4a7718; --accent-ink:#ffffff; --soft:#e6ecd9;
+  --accent:#4a7718; --accent-ink:#ffffff; --soft:#e6ecd9; --bad:#b3261e;
   --mk-top:#2fd0ff; --mk-bot:#ff5ca8;
   --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#141712; --surface:#1d2119; --ink:#e6e9de; --muted:#9aa390; --line:#343a2e;
-  --accent:#a3d158; --accent-ink:#152008; --soft:#263019; color-scheme:dark}}
+  --accent:#a3d158; --accent-ink:#152008; --soft:#263019; --bad:#ff8a80; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#141712; --surface:#1d2119; --ink:#e6e9de; --muted:#9aa390; --line:#343a2e;
-  --accent:#a3d158; --accent-ink:#152008; --soft:#263019; color-scheme:dark}
+  --accent:#a3d158; --accent-ink:#152008; --soft:#263019; --bad:#ff8a80; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
@@ -75,11 +75,38 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
-td:first-child,th:first-child{text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis}
-td{font-family:var(--mono)}td:first-child{font-family:var(--sans)}
+th.l,td.l{text-align:left}
+td.nm{font-family:var(--sans);max-width:170px;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+td{font-family:var(--mono)}
+td img{width:34px;height:42px;object-fit:cover;border-radius:4px;display:block}
+.x{border:none;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:4px 7px;border-radius:6px}
+.x:hover{color:var(--ink);background:var(--soft)}
+.meta{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:8px}
+@media (max-width:420px){.meta{grid-template-columns:minmax(0,1fr)}}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld input{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;min-width:0}
+.fld input#pTitle{font-weight:600}
+.saved{font-size:12px;color:var(--muted);margin:0}
+.saved.ok{color:var(--accent)}
+.empty{color:var(--muted);font-size:13px;margin:0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
 tr.on td{background:var(--soft)}
 .toast{font-size:13px;color:var(--accent);min-height:1.2em;margin:0}
 .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--accent)}
+/* verslag */
+.fld textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;resize:vertical;min-height:52px}
+.rlist{display:flex;flex-direction:column;gap:6px}
+.ritem{display:flex;align-items:center;gap:8px;font-size:14px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+.ritem img{width:30px;height:38px;object-fit:cover;border-radius:4px;flex:none}
+.ritem .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ritem .n{font-family:var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.ritem input{accent-color:var(--accent);width:16px;height:16px;flex:none}
+.ritem.dis{opacity:.5;cursor:default}
+details{border-top:1px solid var(--line);padding-top:10px}
+details summary{cursor:pointer;font-weight:600;font-size:14px}
+details[open]{display:flex;flex-direction:column;gap:10px}
+.saved a{color:var(--accent);font-weight:600}
+.saved.err{color:var(--bad)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -103,7 +130,7 @@ tr.on td{background:var(--soft)}
         <span class="photoname" id="pname">–</span>
         <span id="sample" class="badge" hidden>Voorbeeld</span>
         <button class="btn" id="undo" disabled>Ongedaan maken</button>
-        <button class="btn" id="del">Foto verwijderen</button>
+        <button class="btn" id="del" title="Haalt de foto weg uit dit scherm; de opgeslagen telling blijft bewaard">Foto sluiten</button>
       </div>
       <div class="canvaswrap" id="cw">
         <canvas id="view" width="900" height="1200"></canvas>
@@ -116,6 +143,10 @@ tr.on td{background:var(--soft)}
     <aside class="panel">
       <div class="card">
         <p class="label">Telling deze foto</p>
+        <div class="meta">
+          <label class="fld"><span class="label">Naam</span><input id="pTitle" placeholder="bijv. Bak 3 – Astrophytum" autocomplete="off"></label>
+          <label class="fld"><span class="label">Datum</span><input id="pDate" type="date"></label>
+        </div>
         <div class="counts">
           <div class="half">
             <div class="head"><span class="dot" style="background:var(--mk-top)"></span><input class="nm" id="nmTop" aria-label="Naam bovenste helft"></div>
@@ -131,6 +162,30 @@ tr.on td{background:var(--soft)}
           </div>
         </div>
         <div class="total"><span>Totaal gekiemd</span><span class="num" id="cAll">0</span></div>
+        <p class="saved" id="savedState"></p>
+      </div>
+
+      <div class="card" id="repCard">
+        <p class="label">Verslag naar Google Docs</p>
+        <div class="meta">
+          <label class="fld"><span class="label">Soort</span><input id="rSoort" list="soorten" placeholder="bijv. Astrophytum asterias" autocomplete="off"></label>
+          <label class="fld"><span class="label">Datum</span><input id="rDate" type="date"></label>
+        </div>
+        <datalist id="soorten"></datalist>
+        <div class="fld"><span class="label">Foto's in dit verslag <span id="rCount"></span></span>
+          <div id="rList" class="rlist"></div>
+        </div>
+        <label class="fld"><span class="label">Notitie (optioneel)</span><textarea id="rNote" rows="2" placeholder="bijv. gezaaid op 28-10, 24 °C onder de lamp"></textarea></label>
+        <button class="btn primary" id="rSend">Opslaan in Google Docs</button>
+        <p class="empty" id="rHint">Stel eerst de Google-koppeling in, hieronder.</p>
+        <p class="saved" id="rStatus"></p>
+        <details id="gSet">
+          <summary>Google-koppeling</summary>
+          <label class="fld"><span class="label">Web-app-URL</span><input id="gUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+          <label class="fld"><span class="label">Sleutel</span><input id="gKey" autocomplete="off"></label>
+          <div class="btns"><button class="btn" id="gTest">Verbinding testen</button></div>
+          <p class="saved" id="gStatus"></p>
+        </details>
       </div>
 
       <div class="card">
@@ -152,11 +207,13 @@ tr.on td{background:var(--soft)}
       </div>
 
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <p class="label">Alle foto's</p>
-          <button class="btn" id="copy">Kopieer tabel</button>
-        </div>
+        <p class="label">Opgeslagen tellingen</p>
         <div class="tablewrap"><table id="tbl"></table></div>
+        <p class="empty" id="empty">Nog niets opgeslagen. Upload een foto: de telling wordt meteen bewaard onder de naam die je hierboven invult.</p>
+        <div class="btns">
+          <button class="btn" id="copy">Kopieer tabel</button>
+          <button class="btn" id="csv">Download CSV</button>
+        </div>
         <p class="toast" id="toast"></p>
       </div>
     </aside>
@@ -265,24 +322,63 @@ function findDivider(p){
   return best / 7 > 0.25 ? bestY : h / 2;
 }
 
+/* ---------- opslag in deze browser ---------- */
+const KEY = 'kiemteller.saved.v1', LAST = 'kiemteller.last.v1';
+function readStore(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch(_) { return d; } }
+function writeStore(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(_) { return false; } }
+let saved = readStore(KEY, []);
+let storeOk = true;
+const isoDay = t => { const d = new Date(t); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+function smallThumb(cv){
+  const k = 120 / Math.max(cv.width, cv.height), c = document.createElement('canvas');
+  c.width = Math.round(cv.width * k); c.height = Math.round(cv.height * k);
+  c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.6);
+}
+function recordOf(p){
+  const st = set(), c = countsOf(p);
+  return { id: p.id, title: p.title.trim() || p.name, date: p.date, split: st.split,
+           nmTop: st.split ? p.nmTop : 'Hele bak', t: c.t, sTop: p.sTop, nmBot: st.split ? p.nmBot : '', b: st.split ? c.b : 0, sBot: st.split ? p.sBot : '',
+           total: c.all, thumb: p.small, saved: Date.now() };
+}
+function persist(){
+  for (const p of S.photos){
+    if (p.sample || p.noSave) continue;
+    const r = recordOf(p), i = saved.findIndex(s => s.id === p.id);
+    if (i >= 0) saved[i] = r; else saved.unshift(r);
+  }
+  storeOk = writeStore(KEY, saved);
+  const p = S.photos[S.cur];
+  if (p) writeStore(LAST, { nmTop: p.nmTop, nmBot: p.nmBot });
+}
+let persistTimer = 0;
+function persistSoon(){ clearTimeout(persistTimer); persistTimer = setTimeout(() => { persist(); renderTable(); renderSavedState(); }, 250); }
+
 /* ---------- foto's toevoegen ---------- */
-function addPhoto(name, src, w, h, sample){
+function addPhoto(name, src, w, h, sample, when){
   const cv = toCanvas(src, w, h);
-  const p = { name, cv, thumb: cv.toDataURL('image/jpeg', 0.5), points: [], hist: [], sample: !!sample,
-              nmTop: 'Boven', nmBot: 'Onder', sTop: '', sBot: '' };
+  const last = readStore(LAST, {});
+  const p = { id: 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+              name, title: sample ? name : name.replace(/\.[^.]+$/, ''), date: isoDay(when || Date.now()),
+              cv, thumb: cv.toDataURL('image/jpeg', 0.5), small: sample ? '' : smallThumb(cv), points: [], hist: [], sample: !!sample,
+              nmTop: last.nmTop || 'Boven', nmBot: last.nmBot || 'Onder', sTop: '', sBot: '',
+              autoTitle: true, inRep: !sample && repPhotos().filter(q => q.inRep).length < 4 };
   p.divY = findDivider(p);
   detect(p);
   if (S.photos.length === 1 && S.photos[0].sample) S.photos = [];
   S.photos.push(p);
   S.cur = S.photos.length - 1;
+  renumber();
+  persist();
   renderAll();
+  if (!sample){ const t = $('pTitle'); t.focus(); t.select(); }
 }
 
 function loadFiles(files){
   [...files].filter(f => f.type.startsWith('image/') || /\.(heic|jpe?g|png|webp)$/i.test(f.name)).forEach(f => {
     const url = URL.createObjectURL(f);
     const img = new Image();
-    img.onload = () => { addPhoto(f.name, img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(url); };
+    img.onload = () => { addPhoto(f.name, img, img.naturalWidth, img.naturalHeight, false, f.lastModified); URL.revokeObjectURL(url); };
     img.onerror = () => flash(`“${f.name}” kon niet worden geopend. HEIC-foto's werken alleen in Safari; stel je iPhone in op ‘Meest compatibel’ of stuur als JPG.`);
     img.src = url;
   });
@@ -363,7 +459,9 @@ const pct = (n, s) => s > 0 ? (100 * n / s).toFixed(1).replace('.', ',') + '% ge
 
 function renderPanel(){
   const p = S.photos[S.cur]; const st = set();
-  $('pname').textContent = p ? p.name : 'Geen foto';
+  $('pname').textContent = p ? (p.title.trim() || p.name) : 'Geen foto';
+  if (p){ if (document.activeElement !== $('pTitle')) $('pTitle').value = p.title; $('pDate').value = p.date; }
+  renderSavedState();
   $('sample').hidden = !(p && p.sample);
   $('undo').disabled = !(p && p.hist.length);
   $('del').disabled = !p;
@@ -371,36 +469,66 @@ function renderPanel(){
   if (!p) return;
   const c = countsOf(p);
   $('cTop').textContent = c.t; $('cBot').textContent = st.split ? c.b : '–'; $('cAll').textContent = c.all;
-  $('nmTop').value = st.split ? p.nmTop : 'Hele bak'; $('nmTop').disabled = !st.split;
-  $('nmBot').value = p.nmBot;
-  $('sTop').value = p.sTop; $('sBot').value = p.sBot;
+  const setv = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  setv('nmTop', st.split ? p.nmTop : 'Hele bak'); $('nmTop').disabled = !st.split;
+  setv('nmBot', p.nmBot); setv('sTop', p.sTop); setv('sBot', p.sBot);
   $('pTop').textContent = pct(c.t, +p.sTop); $('pBot').textContent = st.split ? pct(c.b, +p.sBot) : '';
 }
 
+const esc = s => String(s ?? '').replace(/[&<>"]/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
+const pctNum = (n, s) => +s > 0 ? (100 * n / s).toFixed(1).replace('.', ',') : '';
+const nlDate = d => d ? d.split('-').reverse().join('-') : '';
 function renderTable(){
-  const st = set();
-  let h = '<tr><th>Foto</th>' + (st.split ? '<th>Boven</th><th>Onder</th>' : '') + '<th>Totaal</th>' + (st.split ? '<th>% boven</th><th>% onder</th>' : '<th>%</th>') + '</tr>';
-  S.photos.forEach((p, i) => {
-    const c = countsOf(p);
-    const pt = +p.sTop > 0 ? (100 * c.t / p.sTop).toFixed(1).replace('.', ',') : '–';
-    const pb = +p.sBot > 0 ? (100 * c.b / p.sBot).toFixed(1).replace('.', ',') : '–';
-    const esc = s => s.replace(/[&<>"]/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[ch]));
-    h += `<tr class="${i === S.cur ? 'on' : ''}" data-i="${i}" style="cursor:pointer"><td title="${esc(p.name)}">${esc(p.name)}</td>` +
-      (st.split ? `<td>${c.t}</td><td>${c.b}</td>` : '') + `<td>${c.all}</td>` + (st.split ? `<td>${pt}</td><td>${pb}</td>` : `<td>${pt}</td>`) + '</tr>';
-  });
+  const cur = S.photos[S.cur];
+  $('empty').hidden = saved.length > 0;
+  $('tbl').hidden = !saved.length;
+  $('copy').disabled = $('csv').disabled = !saved.length;
+  if (!saved.length){ $('tbl').innerHTML = ''; return; }
+  let h = '<tr><th></th><th class="l">Naam</th><th>Datum</th><th>Boven</th><th>Onder</th><th>Totaal</th><th>% kiem</th><th></th></tr>';
+  for (const r of saved){
+    const sown = (+r.sTop || 0) + (+r.sBot || 0);
+    const p = sown ? pctNum(r.total, sown) : '–';
+    h += `<tr class="${cur && cur.id === r.id ? 'on' : ''}" data-id="${r.id}" style="cursor:pointer">` +
+      `<td>${r.thumb ? `<img src="${r.thumb}" alt="">` : ''}</td>` +
+      `<td class="nm" title="${esc(r.title)}">${esc(r.title)}</td><td>${nlDate(r.date)}</td>` +
+      `<td title="${esc(r.nmTop)}">${r.t}</td><td title="${esc(r.nmBot)}">${r.split ? r.b : '–'}</td><td>${r.total}</td><td>${p}</td>` +
+      `<td><button class="x" data-del="${r.id}" aria-label="Verwijder ${esc(r.title)}" title="Verwijderen">×</button></td></tr>`;
+  }
   $('tbl').innerHTML = h;
 }
-$('tbl').addEventListener('click', e => { const tr = e.target.closest('tr[data-i]'); if (tr){ S.cur = +tr.dataset.i; renderAll(); } });
+$('tbl').addEventListener('click', e => {
+  const del = e.target.closest('[data-del]');
+  if (del){
+    const id = del.dataset.del, r = saved.find(s => s.id === id);
+    saved = saved.filter(s => s.id !== id);
+    const p = S.photos.find(q => q.id === id); if (p) p.noSave = true;
+    storeOk = writeStore(KEY, saved); renderTable(); renderSavedState();
+    flash(`“${r ? r.title : ''}” verwijderd uit de opgeslagen tellingen.`);
+    return;
+  }
+  const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+  const i = S.photos.findIndex(q => q.id === tr.dataset.id);
+  if (i >= 0){ S.cur = i; renderAll(); }
+  else flash('Deze telling is opgeslagen, maar de foto zelf niet. Upload hem opnieuw om hem te bekijken.');
+});
+function renderSavedState(){
+  const p = S.photos[S.cur], el = $('savedState'); if (!p){ el.textContent = ''; return; }
+  el.className = 'saved';
+  if (p.sample) el.textContent = 'Dit is een voorbeeld en wordt niet opgeslagen.';
+  else if (p.noSave) el.textContent = 'Niet opgeslagen. Pas iets aan om hem weer op te slaan.';
+  else if (!storeOk) el.textContent = 'Opslaan lukt niet in deze browser (privévenster of opslag geblokkeerd). Gebruik Download CSV.';
+  else { el.className = 'saved ok'; el.textContent = `✓ Opgeslagen als “${p.title.trim() || p.name}”`; }
+}
 
 function renderThumbs(){
   $('thumbs').innerHTML = S.photos.map((p, i) => `<button class="thumb ${i === S.cur ? 'on' : ''}" data-i="${i}" aria-label="Foto ${i + 1}"><img src="${p.thumb}" alt=""><span>${countsOf(p).all}</span></button>`).join('');
 }
 $('thumbs').addEventListener('click', e => { const b = e.target.closest('.thumb'); if (b){ S.cur = +b.dataset.i; renderAll(); } });
 
-function renderAll(){ draw(); renderPanel(); renderTable(); renderThumbs();
+function renderAll(){ draw(); renderPanel(); renderTable(); renderThumbs(); renderRep();
   $('vSens').textContent = $('sens').value; $('vSize').textContent = $('size').value + '%'; $('vClus').textContent = '× ' + (+$('clus').value / 100).toFixed(2).replace('.', ',');
 }
-function light(){ draw(); renderPanel(); renderTable(); renderThumbs(); }
+function light(){ draw(); renderPanel(); renderThumbs(); renderRep(); const p = S.photos[S.cur]; if (p) p.noSave = false; persistSoon(); }
 
 /* ---------- interactie op de foto ---------- */
 let drag = null;
@@ -440,21 +568,37 @@ $('del').addEventListener('click', () => {
   renderAll();
 });
 
-['sens','size','clus'].forEach(id => $(id).addEventListener('change', () => { S.photos.forEach(detect); renderAll(); }));
+['sens','size','clus'].forEach(id => $(id).addEventListener('change', () => { S.photos.forEach(detect); renderAll(); persistSoon(); }));
 ['sens','size','clus'].forEach(id => $(id).addEventListener('input', () => renderAll.call()));
-$('split').addEventListener('change', renderAll);
-$('nmTop').addEventListener('input', e => { const p = S.photos[S.cur]; if (p) p.nmTop = e.target.value; });
-$('nmBot').addEventListener('input', e => { const p = S.photos[S.cur]; if (p) p.nmBot = e.target.value; });
-$('sTop').addEventListener('input', e => { const p = S.photos[S.cur]; if (p){ p.sTop = e.target.value; renderPanel(); renderTable(); } });
-$('sBot').addEventListener('input', e => { const p = S.photos[S.cur]; if (p){ p.sBot = e.target.value; renderPanel(); renderTable(); } });
+$('split').addEventListener('change', () => { renderAll(); persistSoon(); });
+const field = (id, key, extra) => $(id).addEventListener('input', e => {
+  const p = S.photos[S.cur]; if (!p) return;
+  p[key] = e.target.value; p.noSave = false; if (extra) extra(p);
+  renderPanel(); renderThumbs(); renderRep(); persistSoon();
+});
+field('pTitle', 'title', p => { p.autoTitle = false; });
+field('pDate', 'date');
+field('nmTop', 'nmTop'); field('nmBot', 'nmBot');
+field('sTop', 'sTop'); field('sBot', 'sBot');
+$('pTitle').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
 
 function flash(t){ $('toast').textContent = t; clearTimeout(flash.t); flash.t = setTimeout(() => $('toast').textContent = '', 6000); }
+function tableRows(){
+  const rows = [['Naam','Datum','Helft boven','Gekiemd boven','Gezaaid boven','% boven','Helft onder','Gekiemd onder','Gezaaid onder','% onder','Totaal gekiemd']];
+  for (const r of saved) rows.push([r.title, nlDate(r.date), r.nmTop, r.t, r.sTop, pctNum(r.t, r.sTop), r.nmBot, r.split ? r.b : '', r.sBot, r.split ? pctNum(r.b, r.sBot) : '', r.total]);
+  return rows;
+}
+$('csv').addEventListener('click', () => {
+  const cell = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = '﻿' + tableRows().map(r => r.map(cell).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `kiemtellingen-${isoDay(Date.now())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
 $('copy').addEventListener('click', () => {
-  const st = set();
-  const rows = [['Foto', ...(st.split ? ['Naam boven','Gekiemd boven','Gezaaid boven','Naam onder','Gekiemd onder','Gezaaid onder'] : ['Gekiemd','Gezaaid']), 'Totaal']];
-  S.photos.forEach(p => { const c = countsOf(p);
-    rows.push([p.name, ...(st.split ? [p.nmTop, c.t, p.sTop, p.nmBot, c.b, p.sBot] : [c.all, p.sTop]), c.all]); });
-  const txt = rows.map(r => r.join('\t')).join('\n');
+  const txt = tableRows().map(r => r.join('\t')).join('\n');
   const ok = () => flash('Tabel gekopieerd. Plak hem in Excel of Google Sheets.');
   try { navigator.clipboard.writeText(txt).then(ok, () => fallbackCopy(txt)); } catch(_) { fallbackCopy(txt); }
 });
@@ -465,6 +609,101 @@ function fallbackCopy(txt){
 }
 window.addEventListener('resize', draw);
 
+
+/* ---------- verslag naar Google Docs ---------- */
+const GKEY = 'kiemteller.google.v1', SKEY = 'kiemteller.soorten.v1';
+const gCfg = () => readStore(GKEY, {});
+let busy = false;
+function repPhotos(){ return S.photos.filter(p => !p.sample); }
+function renumber(){
+  const soort = $('rSoort').value.trim(); if (!soort) return;
+  const ps = repPhotos().filter(p => p.inRep);
+  ps.forEach((p, k) => { if (p.autoTitle) p.title = ps.length > 1 ? `${soort} – foto ${k + 1}` : soort; });
+}
+function renderRep(){
+  const ps = repPhotos(), n = ps.filter(p => p.inRep).length, cfg = gCfg(), ready = !!(cfg.url && cfg.key);
+  $('rCount').textContent = ps.length ? `(${n} van max. 4)` : '';
+  $('rList').innerHTML = ps.length ? ps.map(p => {
+    const i = S.photos.indexOf(p), dis = !p.inRep && n >= 4;
+    return `<label class="ritem${dis ? ' dis' : ''}"><input type="checkbox" data-ri="${i}"${p.inRep ? ' checked' : ''}${dis ? ' disabled' : ''}>` +
+      `<img src="${p.small}" alt=""><span class="t">${esc(p.title.trim() || p.name)}</span><span class="n">${countsOf(p).all}</span></label>`;
+  }).join('') : `<p class="empty">Upload eerst foto's van deze soort.</p>`;
+  $('rSend').disabled = busy || !n || !ready;
+  $('rSend').textContent = busy ? 'Bezig met opslaan…' : 'Opslaan in Google Docs';
+  $('rHint').hidden = ready;
+}
+$('rList').addEventListener('change', e => {
+  const i = e.target.dataset.ri; if (i == null) return;
+  S.photos[+i].inRep = e.target.checked; renumber(); renderAll(); persistSoon();
+});
+$('rSoort').addEventListener('input', () => { renumber(); renderPanel(); renderThumbs(); renderRep(); persistSoon(); });
+function fillSoorten(){ $('soorten').innerHTML = readStore(SKEY, []).map(s => `<option value="${esc(s)}">`).join(''); }
+function initG(){
+  const c = gCfg();
+  $('gUrl').value = c.url || ''; $('gKey').value = c.key || '';
+  $('gSet').open = !(c.url && c.key);
+  $('rDate').value = isoDay(Date.now());
+  fillSoorten();
+}
+['gUrl', 'gKey'].forEach(id => $(id).addEventListener('input', () => {
+  writeStore(GKEY, { url: $('gUrl').value.trim(), key: $('gKey').value.trim() }); $('gStatus').textContent = ''; renderRep();
+}));
+async function gPost(payload){
+  const c = gCfg();
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(c.url || ''))
+    throw new Error('De web-app-URL klopt niet. Hij begint met https://script.google.com/macros/s/ en eindigt op /exec.');
+  let res;
+  try {
+    res = await fetch(c.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                               body: JSON.stringify(Object.assign({ key: c.key }, payload)) });
+  } catch(_) {
+    throw new Error('Google is niet bereikbaar. Controleer je internetverbinding en of de web-app toegang "Iedereen" heeft. (In de voorbeeldweergave in Claude werkt dit niet, alleen op je eigen site.)');
+  }
+  let j;
+  try { j = await res.json(); }
+  catch(_) { throw new Error('Google gaf een onverwacht antwoord. Controleer of je de URL van de web-app hebt geplakt (eindigt op /exec) en of hij is geïmplementeerd.'); }
+  if (!j.ok) throw new Error(j.error || 'Opslaan mislukt.');
+  return j;
+}
+const link = (url, t) => `<a href="${esc(url)}" target="_blank" rel="noopener">${t}</a>`;
+$('gTest').addEventListener('click', async () => {
+  const el = $('gStatus'); el.className = 'saved'; el.textContent = 'Verbinding testen…';
+  try { const j = await gPost({ action: 'ping' }); el.className = 'saved ok'; el.innerHTML = `✓ Verbonden. Verslagen komen in ${link(j.folderUrl, 'je Kiemteller-map')}.`; }
+  catch(err){ el.className = 'saved err'; el.textContent = err.message; }
+});
+function annotated(p){
+  const prev = S.cur; S.cur = S.photos.indexOf(p); draw();
+  const k = Math.min(1, 1200 / Math.max(view.width, view.height));
+  const c = document.createElement('canvas'); c.width = Math.round(view.width * k); c.height = Math.round(view.height * k);
+  c.getContext('2d').drawImage(view, 0, 0, c.width, c.height);
+  S.cur = prev; draw();
+  return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+$('rSend').addEventListener('click', async () => {
+  const soort = $('rSoort').value.trim(), el = $('rStatus');
+  const ps = repPhotos().filter(p => p.inRep);
+  if (!soort){ el.className = 'saved err'; el.textContent = 'Vul eerst de soort in.'; $('rSoort').focus(); return; }
+  if (!ps.length || busy) return;
+  const st = set();
+  const fotos = ps.map(p => { const c = countsOf(p); return {
+    title: p.title.trim() || p.name, date: p.date, split: st.split,
+    nmTop: st.split ? p.nmTop : 'Hele bak', t: c.t, sTop: p.sTop,
+    nmBot: st.split ? p.nmBot : '', b: st.split ? c.b : 0, sBot: st.split ? p.sBot : '',
+    total: c.all, image: annotated(p) }; });
+  busy = true; renderRep();
+  el.className = 'saved'; el.textContent = `Verslag maken met ${ps.length} foto${ps.length > 1 ? "'s" : ''}…`;
+  try {
+    const j = await gPost({ action: 'report', soort, datum: $('rDate').value, notitie: $('rNote').value.trim(), fotos });
+    el.className = 'saved ok';
+    el.innerHTML = `✓ Verslag “${esc(soort)}” opgeslagen. ${link(j.docUrl, 'Open verslag')} · ${link(j.sheetUrl, 'Open overzicht')}`;
+    const hist = readStore(SKEY, []).filter(x => x !== soort); hist.unshift(soort); writeStore(SKEY, hist.slice(0, 60)); fillSoorten();
+    ps.forEach(p => { p.inRep = false; });
+    $('rSoort').value = ''; $('rNote').value = '';
+  } catch(err){ el.className = 'saved err'; el.textContent = err.message; }
+  busy = false; renderAll();
+});
+
+initG();
 const sc = makeSample();
 addPhoto('Voorbeeldbak (gegenereerd)', sc, sc.width, sc.height, true);
 })();
