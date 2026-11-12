@@ -93,6 +93,8 @@ td img{width:34px;height:42px;object-fit:cover;border-radius:4px;display:block}
 tr.on td{background:var(--soft)}
 .toast{font-size:13px;color:var(--accent);min-height:1.2em;margin:0}
 .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--accent)}
+.dcount{font-family:var(--mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dcount b{color:var(--ink);font-size:18px}
 /* verslag */
 .fld textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;resize:vertical;min-height:52px}
 .rlist{display:flex;flex-direction:column;gap:6px}
@@ -132,15 +134,32 @@ details[open]{display:flex;flex-direction:column;gap:10px}
         <button class="btn" id="undo" disabled>Ongedaan maken</button>
         <button class="btn" id="del" title="Haalt de foto weg uit dit scherm; de opgeslagen telling blijft bewaard">Foto sluiten</button>
       </div>
+      <div class="thumbs" id="thumbs"></div>
       <div class="canvaswrap" id="cw">
         <canvas id="view" width="900" height="1200"></canvas>
         <div class="drop">Laat los om te tellen</div>
       </div>
       <p class="hint">Tik op lege grond om een kieming toe te voegen, tik op een markering om die te verwijderen (bij een groepje gaat er één af). Sleep de witte stippellijn naar de scheiding tussen de twee helften.</p>
-      <div class="thumbs" id="thumbs"></div>
     </section>
 
     <aside class="panel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><p class="label">Detectie</p><span class="dcount" id="dCount"></span></div>
+        <label class="check"><input type="checkbox" id="split" checked> Bak is in twee helften verdeeld</label>
+        <div class="row">
+          <div class="top"><label for="sens">Gevoeligheid kleur</label><span id="vSens"></span></div>
+          <input type="range" id="sens" min="1" max="10" step="1" value="5">
+        </div>
+        <div class="row">
+          <div class="top"><label for="size">Minimale grootte</label><span id="vSize"></span></div>
+          <input type="range" id="size" min="5" max="80" step="5" value="30">
+        </div>
+        <div class="row">
+          <div class="top"><label for="clus">Groepjes splitsen vanaf</label><span id="vClus"></span></div>
+          <input type="range" id="clus" min="130" max="300" step="10" value="165">
+        </div>
+        <p class="hint">Gemist? Gevoeligheid omhoog. Zaadjes of korrels meegeteld? Minimale grootte omhoog. Een nieuwe instelling telt opnieuw; zelf toegevoegde markeringen blijven staan.</p>
+      </div>
       <div class="card">
         <p class="label">Telling deze foto</p>
         <div class="meta">
@@ -188,23 +207,6 @@ details[open]{display:flex;flex-direction:column;gap:10px}
         </details>
       </div>
 
-      <div class="card">
-        <p class="label">Detectie</p>
-        <label class="check"><input type="checkbox" id="split" checked> Bak is in twee helften verdeeld</label>
-        <div class="row">
-          <div class="top"><label for="sens">Gevoeligheid kleur</label><span id="vSens"></span></div>
-          <input type="range" id="sens" min="1" max="10" step="1" value="5">
-        </div>
-        <div class="row">
-          <div class="top"><label for="size">Minimale grootte</label><span id="vSize"></span></div>
-          <input type="range" id="size" min="5" max="80" step="5" value="30">
-        </div>
-        <div class="row">
-          <div class="top"><label for="clus">Groepjes splitsen vanaf</label><span id="vClus"></span></div>
-          <input type="range" id="clus" min="130" max="300" step="10" value="165">
-        </div>
-        <p class="hint">Gemist? Gevoeligheid omhoog. Zaadjes of korrels meegeteld? Minimale grootte omhoog. Een nieuwe instelling telt opnieuw; zelf toegevoegde markeringen blijven staan.</p>
-      </div>
 
       <div class="card">
         <p class="label">Opgeslagen tellingen</p>
@@ -468,6 +470,7 @@ function renderPanel(){
   $('botBox').style.opacity = st.split ? 1 : .4;
   if (!p) return;
   const c = countsOf(p);
+  $('dCount').innerHTML = st.split ? `${c.t} + ${c.b} = <b>${c.all}</b>` : `<b>${c.all}</b> gekiemd`;
   $('cTop').textContent = c.t; $('cBot').textContent = st.split ? c.b : '–'; $('cAll').textContent = c.all;
   const setv = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
   setv('nmTop', st.split ? p.nmTop : 'Hele bak'); $('nmTop').disabled = !st.split;
@@ -569,7 +572,12 @@ $('del').addEventListener('click', () => {
 });
 
 ['sens','size','clus'].forEach(id => $(id).addEventListener('change', () => { S.photos.forEach(detect); renderAll(); persistSoon(); }));
-['sens','size','clus'].forEach(id => $(id).addEventListener('input', () => renderAll.call()));
+let liveT = 0;
+['sens','size','clus'].forEach(id => $(id).addEventListener('input', () => {
+  renderAll();
+  clearTimeout(liveT);
+  liveT = setTimeout(() => { const p = S.photos[S.cur]; if (p){ detect(p); renderAll(); } }, 90);
+}));
 $('split').addEventListener('change', () => { renderAll(); persistSoon(); });
 const field = (id, key, extra) => $(id).addEventListener('input', e => {
   const p = S.photos[S.cur]; if (!p) return;
