@@ -39,6 +39,11 @@ header p{margin:4px 0 0;color:var(--muted);max-width:60ch}
 .main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
 @media (max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
 .stage{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+.seg button{font:inherit;font-weight:600;font-size:14px;border:none;background:var(--surface);color:var(--ink);padding:8px 14px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .stagebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .photoname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 .canvaswrap{position:relative;border-radius:8px;overflow:hidden;background:#0d0d0d;touch-action:manipulation}
@@ -84,7 +89,7 @@ td img{width:34px;height:42px;object-fit:cover;border-radius:4px;display:block}
 .meta{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:8px}
 @media (max-width:420px){.meta{grid-template-columns:minmax(0,1fr)}}
 .fld{display:flex;flex-direction:column;gap:4px;min-width:0}
-.fld input{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;min-width:0}
+.fld input,.fld select{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;min-width:0}
 .fld input#pTitle{font-weight:600}
 .saved{font-size:12px;color:var(--muted);margin:0}
 .saved.ok{color:var(--accent)}
@@ -131,6 +136,10 @@ details[open]{display:flex;flex-direction:column;gap:10px}
       <div class="stagebar">
         <span class="photoname" id="pname">–</span>
         <span id="sample" class="badge" hidden>Voorbeeld</span>
+        <div class="seg" role="group" aria-label="Wat doet tikken op de foto">
+          <button id="mAdd" class="on" aria-pressed="true" title="Tik op lege grond: nieuwe kieming. Tik op een markering: één erbij.">+ Erbij</button>
+          <button id="mDel" aria-pressed="false" title="Tik op een markering: één eraf.">− Eraf</button>
+        </div>
         <button class="btn" id="undo" disabled>Ongedaan maken</button>
         <button class="btn" id="del" title="Haalt de foto weg uit dit scherm; de opgeslagen telling blijft bewaard">Foto sluiten</button>
       </div>
@@ -139,7 +148,8 @@ details[open]{display:flex;flex-direction:column;gap:10px}
         <canvas id="view" width="900" height="1200"></canvas>
         <div class="drop">Laat los om te tellen</div>
       </div>
-      <p class="hint">Tik op lege grond om een kieming toe te voegen, tik op een markering om die te verwijderen (bij een groepje gaat er één af). Sleep de witte stippellijn naar de scheiding tussen de twee helften.</p>
+      <p class="saved err" id="tapMsg" aria-live="polite"></p>
+      <p class="hint"><b>+ Erbij</b>: tik op lege grond voor een nieuwe kieming, of op een markering om er één bij te tellen (handig bij groepjes). <b>− Eraf</b>: tik op een markering om er één af te halen. Op de computer draait Shift-klik de modus even om. Sleep de witte stippellijn naar de scheiding tussen de twee helften.</p>
     </section>
 
     <aside class="panel">
@@ -193,6 +203,13 @@ details[open]{display:flex;flex-direction:column;gap:10px}
         <datalist id="soorten"></datalist>
         <div class="fld"><span class="label">Foto's in dit verslag <span id="rCount"></span></span>
           <div id="rList" class="rlist"></div>
+        </div>
+        <div class="fld">
+          <div class="meta">
+            <label class="fld"><span class="label">Temperatuursonde</span><select id="rSonde"><option value="">Geen temperatuur</option></select></label>
+            <label class="fld"><span class="label">Vanaf (zaaidatum)</span><input id="rVan" type="date"></label>
+          </div>
+          <p class="saved" id="rSondeInfo"></p>
         </div>
         <label class="fld"><span class="label">Notitie (optioneel)</span><textarea id="rNote" rows="2" placeholder="bijv. gezaaid op 28-10, 24 °C onder de lamp"></textarea></label>
         <button class="btn primary" id="rSend">Opslaan in Google Docs</button>
@@ -299,6 +316,10 @@ function detect(p){
     auto.push({ x: b.x, y: b.y, n, manual: false });
   }
   const manual = (p.points || []).filter(q => q.manual);
+  const near = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < p.r * 1.3;
+  const removed = p.removed || [];
+  for (let i = auto.length - 1; i >= 0; i--)
+    if (manual.some(m => near(m, auto[i])) || removed.some(r => near(r, auto[i]))) auto.splice(i, 1);
   p.points = auto.concat(manual);
   p.hist = [];
 }
@@ -364,7 +385,7 @@ function addPhoto(name, src, w, h, sample, when){
               name, title: sample ? name : name.replace(/\.[^.]+$/, ''), date: isoDay(when || Date.now()),
               cv, thumb: cv.toDataURL('image/jpeg', 0.5), small: sample ? '' : smallThumb(cv), points: [], hist: [], sample: !!sample,
               nmTop: last.nmTop || 'Boven', nmBot: last.nmBot || 'Onder', sTop: '', sBot: '',
-              autoTitle: true, inRep: !sample && repPhotos().filter(q => q.inRep).length < 4 };
+              autoTitle: true, inRep: !sample && repPhotos().filter(q => q.inRep).length < MAXREP };
   p.divY = findDivider(p);
   detect(p);
   if (S.photos.length === 1 && S.photos[0].sample) S.photos = [];
@@ -554,17 +575,41 @@ view.addEventListener('pointerup', e => {
   if (!p || !d || d.moved) return;
   if (d.div){ return; }
   const q = pos(e);
-  p.hist.push(JSON.stringify(p.points)); if (p.hist.length > 60) p.hist.shift();
+  const adding = (tapMode === 'add') !== e.shiftKey;
   let bi = -1, bd = Infinity;
   p.points.forEach((pt, i) => { const dd = Math.hypot(pt.x - q.x, pt.y - q.y); if (dd < bd){ bd = dd; bi = i; } });
   const hitR = Math.max(p.r * 1.5, 14 * q.k);
-  if (bi >= 0 && bd < hitR){ const pt = p.points[bi]; if (pt.n > 1) pt.n--; else p.points.splice(bi, 1); }
-  else p.points.push({ x: q.x, y: q.y, n: 1, manual: true });
+  const hit = bi >= 0 && bd < hitR ? p.points[bi] : null;
+  if (!adding && !hit){ tapMsg('Geen markering op die plek. Kies + Erbij om een kieming toe te voegen.'); return; }
+  tapMsg('');
+  p.hist.push(JSON.stringify({ points: p.points, removed: p.removed || [] })); if (p.hist.length > 60) p.hist.shift();
+  if (adding){
+    if (hit){ hit.n++; hit.manual = true; }
+    else p.points.push({ x: q.x, y: q.y, n: 1, manual: true });
+  } else {
+    if (hit.n > 1){ hit.n--; hit.manual = true; }
+    else { p.points.splice(bi, 1); if (!hit.manual) (p.removed = p.removed || []).push({ x: hit.x, y: hit.y }); }
+  }
   light();
 });
 view.addEventListener('pointercancel', () => drag = null);
 
-$('undo').addEventListener('click', () => { const p = S.photos[S.cur]; if (p && p.hist.length){ p.points = JSON.parse(p.hist.pop()); light(); } });
+$('undo').addEventListener('click', () => {
+  const p = S.photos[S.cur]; if (!p || !p.hist.length) return;
+  const h = JSON.parse(p.hist.pop());
+  if (Array.isArray(h)) p.points = h; else { p.points = h.points; p.removed = h.removed; }
+  light();
+});
+function tapMsg(t){ $('tapMsg').textContent = t; clearTimeout(tapMsg.t); if (t) tapMsg.t = setTimeout(() => $('tapMsg').textContent = '', 4000); }
+let tapMode = readStore('kiemteller.tapmode.v1', 'add');
+function setTapMode(m){
+  tapMode = m; writeStore('kiemteller.tapmode.v1', m);
+  $('mAdd').classList.toggle('on', m === 'add'); $('mAdd').setAttribute('aria-pressed', m === 'add');
+  $('mDel').classList.toggle('on', m === 'del'); $('mDel').setAttribute('aria-pressed', m === 'del');
+}
+$('mAdd').addEventListener('click', () => setTapMode('add'));
+$('mDel').addEventListener('click', () => setTapMode('del'));
+setTapMode(tapMode);
 $('del').addEventListener('click', () => {
   if (S.cur < 0) return; S.photos.splice(S.cur, 1); S.cur = Math.min(S.cur, S.photos.length - 1);
   if (!S.photos.length){ vctx.fillStyle = '#0d0d0d'; vctx.fillRect(0, 0, view.width, view.height); }
@@ -622,6 +667,7 @@ window.addEventListener('resize', draw);
 const GKEY = 'kiemteller.google.v1', SKEY = 'kiemteller.soorten.v1';
 const gCfg = () => readStore(GKEY, {});
 let busy = false;
+const MAXREP = 20;
 function repPhotos(){ return S.photos.filter(p => !p.sample); }
 function renumber(){
   const soort = $('rSoort').value.trim(); if (!soort) return;
@@ -630,9 +676,9 @@ function renumber(){
 }
 function renderRep(){
   const ps = repPhotos(), n = ps.filter(p => p.inRep).length, cfg = gCfg(), ready = !!(cfg.url && cfg.key);
-  $('rCount').textContent = ps.length ? `(${n} van max. 4)` : '';
+  $('rCount').textContent = ps.length ? `(${n} van max. ${MAXREP})` : '';
   $('rList').innerHTML = ps.length ? ps.map(p => {
-    const i = S.photos.indexOf(p), dis = !p.inRep && n >= 4;
+    const i = S.photos.indexOf(p), dis = !p.inRep && n >= MAXREP;
     return `<label class="ritem${dis ? ' dis' : ''}"><input type="checkbox" data-ri="${i}"${p.inRep ? ' checked' : ''}${dis ? ' disabled' : ''}>` +
       `<img src="${p.small}" alt=""><span class="t">${esc(p.title.trim() || p.name)}</span><span class="n">${countsOf(p).all}</span></label>`;
   }).join('') : `<p class="empty">Upload eerst foto's van deze soort.</p>`;
@@ -644,7 +690,7 @@ $('rList').addEventListener('change', e => {
   const i = e.target.dataset.ri; if (i == null) return;
   S.photos[+i].inRep = e.target.checked; renumber(); renderAll(); persistSoon();
 });
-$('rSoort').addEventListener('input', () => { renumber(); renderPanel(); renderThumbs(); renderRep(); persistSoon(); });
+$('rSoort').addEventListener('input', () => { const z = readStore(ZKEY, {})[$('rSoort').value.trim()]; if (z) $('rVan').value = z; renumber(); renderPanel(); renderThumbs(); renderRep(); persistSoon(); });
 function fillSoorten(){ $('soorten').innerHTML = readStore(SKEY, []).map(s => `<option value="${esc(s)}">`).join(''); }
 function initG(){
   const c = gCfg();
@@ -652,7 +698,39 @@ function initG(){
   $('gSet').open = !(c.url && c.key);
   $('rDate').value = isoDay(Date.now());
   fillSoorten();
+  loadSondes();
 }
+/* ---------- temperatuursondes ---------- */
+const ZKEY = 'kiemteller.zaaidata.v1', OKEY = 'kiemteller.sonde.v1';
+let sondes = [];
+function ago(iso){
+  const min = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (min < 1) return 'zojuist';
+  if (min < 60) return `${min} min geleden`;
+  if (min < 48 * 60) return `${Math.round(min / 60)} uur geleden`;
+  return `${Math.round(min / 1440)} dagen geleden`;
+}
+function renderSonde(){
+  const sel = $('rSonde'), el = $('rSondeInfo');
+  const cur = sel.value || readStore(OKEY, '');
+  sel.innerHTML = '<option value="">Geen temperatuur</option>' + sondes.map(x => `<option value="${esc(x.adres)}">${esc(x.naam)}</option>`).join('');
+  if (sondes.some(x => x.adres === cur)) sel.value = cur;
+  $('rVan').disabled = !sel.value;
+  const x = sondes.find(q => q.adres === sel.value);
+  if (!x){ el.className = 'saved'; el.textContent = sondes.length ? '' : 'Nog geen sondes. Zodra de logger zijn eerste meting stuurt, verschijnt hij hier.'; return; }
+  if (!x.laatst){ el.className = 'saved'; el.textContent = 'Nog geen metingen van deze sonde.'; return; }
+  const oud = Date.now() - new Date(x.laatst) > 45 * 60000;
+  el.className = oud ? 'saved err' : 'saved ok';
+  el.textContent = `Laatste meting ${x.c != null ? x.c.toFixed(1).replace('.', ',') + ' °C' : ''}, ${ago(x.laatst)}` + (oud ? '. Staat de logger aan?' : '');
+}
+async function loadSondes(){
+  const c = gCfg(); if (!(c.url && c.key)) { renderSonde(); return; }
+  try { const j = await gPost({ action: 'sondes' }); sondes = j.sondes || []; }
+  catch(_) { /* stil: geen verbinding, dan gewoon zonder temperatuur */ }
+  renderSonde();
+}
+$('rSonde').addEventListener('change', () => { writeStore(OKEY, $('rSonde').value); renderSonde(); });
+$('rSonde').addEventListener('focus', loadSondes);
 ['gUrl', 'gKey'].forEach(id => $(id).addEventListener('input', () => {
   writeStore(GKEY, { url: $('gUrl').value.trim(), key: $('gKey').value.trim() }); $('gStatus').textContent = ''; renderRep();
 }));
@@ -676,12 +754,13 @@ async function gPost(payload){
 const link = (url, t) => `<a href="${esc(url)}" target="_blank" rel="noopener">${t}</a>`;
 $('gTest').addEventListener('click', async () => {
   const el = $('gStatus'); el.className = 'saved'; el.textContent = 'Verbinding testen…';
-  try { const j = await gPost({ action: 'ping' }); el.className = 'saved ok'; el.innerHTML = `✓ Verbonden. Verslagen komen in ${link(j.folderUrl, 'je Kiemteller-map')}.`; }
+  try { const j = await gPost({ action: 'ping' }); sondes = j.sondes || []; renderSonde(); el.className = 'saved ok'; el.innerHTML = `✓ Verbonden. Verslagen komen in ${link(j.folderUrl, 'je Kiemteller-map')}.`; }
   catch(err){ el.className = 'saved err'; el.textContent = err.message; }
 });
 function annotated(p){
   const prev = S.cur; S.cur = S.photos.indexOf(p); draw();
-  const k = Math.min(1, 1200 / Math.max(view.width, view.height));
+  const many = repPhotos().filter(q => q.inRep).length > 6;
+  const k = Math.min(1, (many ? 1000 : 1200) / Math.max(view.width, view.height));
   const c = document.createElement('canvas'); c.width = Math.round(view.width * k); c.height = Math.round(view.height * k);
   c.getContext('2d').drawImage(view, 0, 0, c.width, c.height);
   S.cur = prev; draw();
@@ -692,6 +771,9 @@ $('rSend').addEventListener('click', async () => {
   const ps = repPhotos().filter(p => p.inRep);
   if (!soort){ el.className = 'saved err'; el.textContent = 'Vul eerst de soort in.'; $('rSoort').focus(); return; }
   if (!ps.length || busy) return;
+  const adres = $('rSonde').value, van = $('rVan').value;
+  if (adres && !van){ el.className = 'saved err'; el.textContent = 'Vul de zaaidatum in (vanaf wanneer de temperatuur in het verslag moet).'; $('rVan').focus(); return; }
+  if (adres && van > $('rDate').value){ el.className = 'saved err'; el.textContent = 'De zaaidatum ligt na de verslagdatum.'; $('rVan').focus(); return; }
   const st = set();
   const fotos = ps.map(p => { const c = countsOf(p); return {
     title: p.title.trim() || p.name, date: p.date, split: st.split,
@@ -701,12 +783,13 @@ $('rSend').addEventListener('click', async () => {
   busy = true; renderRep();
   el.className = 'saved'; el.textContent = `Verslag maken met ${ps.length} foto${ps.length > 1 ? "'s" : ''}…`;
   try {
-    const j = await gPost({ action: 'report', soort, datum: $('rDate').value, notitie: $('rNote').value.trim(), fotos });
+    const j = await gPost({ action: 'report', soort, datum: $('rDate').value, notitie: $('rNote').value.trim(), fotos, temp: adres ? { adres, van } : null });
+    if (van){ const z = readStore(ZKEY, {}); z[soort] = van; writeStore(ZKEY, z); }
     el.className = 'saved ok';
     el.innerHTML = `✓ Verslag “${esc(soort)}” opgeslagen. ${link(j.docUrl, 'Open verslag')} · ${link(j.sheetUrl, 'Open overzicht')}`;
     const hist = readStore(SKEY, []).filter(x => x !== soort); hist.unshift(soort); writeStore(SKEY, hist.slice(0, 60)); fillSoorten();
     ps.forEach(p => { p.inRep = false; });
-    $('rSoort').value = ''; $('rNote').value = '';
+    $('rSoort').value = ''; $('rNote').value = ''; $('rVan').value = '';
   } catch(err){ el.className = 'saved err'; el.textContent = err.message; }
   busy = false; renderAll();
 });
